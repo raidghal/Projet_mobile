@@ -14,7 +14,10 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.widget.Toast;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -31,6 +34,18 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+                    || checkSelfPermission(android.Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED
+                    || checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+                requestPermissions(new String[]{
+                        android.Manifest.permission.BLUETOOTH_CONNECT,
+                        android.Manifest.permission.BLUETOOTH_SCAN,
+                        android.Manifest.permission.ACCESS_FINE_LOCATION
+                }, 1);
+            }
+        }
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -57,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
             serverBtn.setVisibility(View.INVISIBLE);
             clientBtn.setText("client en attente");
             clientBtn.setClickable(false);
-            attentetxt.setText("*Connexion à un serveur...*");
+            attentetxt.setText("*Attente de connexion au serveur*");
 
             Log.d("Bluetooth", "Mode client activé. Recherche d’un serveur...");
 
