@@ -1,4 +1,4 @@
-package com.example.projetraid;
+ package com.example.projetraid;
 
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Set;
 import java.util.UUID;
+
 public class MainActivity extends AppCompatActivity {
 
     BluetoothAdapter bluetoothAdapter;
