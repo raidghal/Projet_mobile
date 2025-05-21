@@ -7,35 +7,119 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+// =============================
+// === Ancien code (commenté) ===
+// =============================
+
+/*
 public class TransferData extends Thread {
-    private static TransferData instance;
+    private final BluetoothSocket socket;
     private final InputStream inputStream;
     private final OutputStream outputStream;
 
-    public static void init(BluetoothSocket socket) throws IOException {
-        if (instance == null) {
-            instance = new TransferData(socket);
+    public TransferData(BluetoothSocket socket) {
+        this.socket = socket;
+        InputStream tmpIn = null;
+        OutputStream tmpOut = null;
+
+        try {
+            tmpIn = socket.getInputStream();
+            tmpOut = socket.getOutputStream();
+            Log.d("Bluetooth", "Flux de données établis.");
+        } catch (IOException e) {
+            Log.e("Bluetooth", "Erreur lors de la récupération des flux.", e);
+        }
+
+        inputStream = tmpIn;
+        outputStream = tmpOut;
+    }
+
+    public void run() {
+        byte[] buffer = new byte[1024];
+        int bytes;
+
+        while (true) {
+            try {
+                bytes = inputStream.read(buffer);
+                String message = new String(buffer, 0, bytes);
+                Log.d("Bluetooth", "Message reçu : " + message);
+            } catch (IOException e) {
+                Log.e("Bluetooth", "Erreur de lecture.", e);
+                break;
+            }
         }
     }
 
-    public static TransferData getInstance() {
-        return instance;
+    public void write(byte[] bytes) {
+        try {
+            outputStream.write(bytes);
+            Log.d("Bluetooth", "Message envoyé.");
+        } catch (IOException e) {
+            Log.e("Bluetooth", "Erreur d’écriture.", e);
+        }
+    }
+}
+*/
+
+// =============================
+// === Nouveau code corrigé ===
+// =============================
+
+public class TransferData extends Thread {
+
+    private final BluetoothSocket socket;
+    private final InputStream inputStream;
+    private final OutputStream outputStream;
+
+    public TransferData(BluetoothSocket socket) {
+        this.socket = socket;
+        InputStream tmpIn = null;
+        OutputStream tmpOut = null;
+
+        try {
+            tmpIn = socket.getInputStream();
+            tmpOut = socket.getOutputStream();
+            Log.d("Bluetooth", "Flux de données établis.");
+        } catch (IOException e) {
+            Log.e("Bluetooth", "Erreur lors de la récupération des flux.", e);
+        }
+
+        inputStream = tmpIn;
+        outputStream = tmpOut;
     }
 
-    private TransferData(BluetoothSocket socket) throws IOException {
-        inputStream = socket.getInputStream();
-        outputStream = socket.getOutputStream();
+    @Override
+    public void run() {
+        byte[] buffer = new byte[1024];
+        int bytes;
+
+        while (true) {
+            try {
+                bytes = inputStream.read(buffer);
+                String message = new String(buffer, 0, bytes);
+                Log.d("Bluetooth", "Message reçu : " + message);
+                // Tu peux ici appeler un listener pour afficher côté UI si besoin
+            } catch (IOException e) {
+                Log.e("Bluetooth", "Erreur de lecture.", e);
+                break;
+            }
+        }
+    }
+
+    public void write(byte[] bytes) {
+        try {
+            outputStream.write(bytes);
+            Log.d("Bluetooth", "Message envoyé.");
+        } catch (IOException e) {
+            Log.e("Bluetooth", "Erreur d’écriture.", e);
+        }
     }
 
     public InputStream getInputStream() {
         return inputStream;
     }
 
-    public void write(byte[] buffer) {
-        try {
-            outputStream.write(buffer);
-        } catch (IOException e) {
-            Log.e("TransferData", "Erreur d’écriture", e);
-        }
+    public OutputStream getOutputStream() {
+        return outputStream;
     }
 }

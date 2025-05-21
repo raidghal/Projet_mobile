@@ -27,7 +27,8 @@ public class ClientActivity extends AppCompatActivity {
         setContentView(R.layout.activity_client); // Crée ce layout
 
         layoutDevices = findViewById(R.id.linearLayoutDevices); // Défini dans activity_client.xml
-        transferData = TransferData.getInstance(); // Singleton
+        transferData = MainActivity.transferData;
+
 
         // Thread de réception de données du serveur
         new Thread(() -> {

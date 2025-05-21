@@ -1,23 +1,23 @@
- package com.example.projetraid;
-
+package com.example.projetraid;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
+import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
-
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.Manifest;
-import android.content.pm.PackageManager;
-import android.os.Build;
 import android.widget.Toast;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -27,35 +27,26 @@ import java.util.UUID;
 public class MainActivity extends AppCompatActivity {
 
     BluetoothAdapter bluetoothAdapter;
-    private TransferData transferData;
+    public static TransferData transferData;
+
     public static boolean isServer;
 
     private static final UUID MY_UUID = UUID.fromString("8b5a1316-e19e-11ec-8fea-0242ac120002");
+    private static final int REQUEST_BT_PERMISSIONS = 1000;
+    private static final String SERVER_MAC_ADDRESS = "18:87:40:78:8d:d9";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
-                    || checkSelfPermission(android.Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED
-                    || checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-                requestPermissions(new String[]{
-                        android.Manifest.permission.BLUETOOTH_CONNECT,
-                        android.Manifest.permission.BLUETOOTH_SCAN,
-                        android.Manifest.permission.ACCESS_FINE_LOCATION
-                }, 1);
-            }
-        }
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        checkBluetoothPermissions();
 
         Button clientBtn = findViewById(R.id.clientBtn);
         Button serverBtn = findViewById(R.id.serveurBtn);
         TextView attentetxt = findViewById(R.id.attenteTxt);
         attentetxt.setText("");
-
         serverBtn.setOnClickListener(v -> {
             clientBtn.setVisibility(View.INVISIBLE);
             serverBtn.setText("serveur en attente");
@@ -63,7 +54,6 @@ public class MainActivity extends AppCompatActivity {
             attentetxt.setText("*Attente de connexion d'un client*");
 
             Log.d("Bluetooth", "Mode serveur activé. En attente de connexion...");
-
             new ServerThread().start();
             isServer = true;
         });
@@ -72,25 +62,62 @@ public class MainActivity extends AppCompatActivity {
             serverBtn.setVisibility(View.INVISIBLE);
             clientBtn.setText("client en attente");
             clientBtn.setClickable(false);
-            attentetxt.setText("*Attente de connexion au serveur*");
+            attentetxt.setText("*Connexion à un serveur...*");
 
             Log.d("Bluetooth", "Mode client activé. Recherche d’un serveur...");
 
-            Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
-            BluetoothDevice device = null;
-            if (!pairedDevices.isEmpty()) {
-                device = pairedDevices.iterator().next();
-                Log.d("Bluetooth", "Appareil appairé trouvé : " + device.getName());
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED ||
+                    ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Permission Bluetooth requise", Toast.LENGTH_SHORT).show();
+                return;
             }
 
-            if (device != null) {
-                new ClientThread(device).start();
+            Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+            BluetoothDevice targetDevice = null;
+
+            for (BluetoothDevice device : pairedDevices) {
+                Log.d("Bluetooth", "Appairé : " + device.getName() + " (" + device.getAddress() + ")");
+                if (device.getAddress().equalsIgnoreCase(SERVER_MAC_ADDRESS)) {
+                    targetDevice = device;
+                    Log.d("Bluetooth", "Appareil serveur trouvé : " + device.getName());
+                    break;
+                }
+            }
+
+            if (targetDevice != null) {
+                new ClientThread(targetDevice).start();
                 isServer = false;
             } else {
-                attentetxt.setText("Aucun appareil appairé trouvé.");
-                Log.e("Bluetooth", "Erreur : aucun appareil appairé trouvé.");
+                attentetxt.setText("Appareil serveur non trouvé !");
+                Log.e("Bluetooth", "Aucun appareil appairé avec l'adresse MAC " + SERVER_MAC_ADDRESS);
             }
         });
+    }
+
+    private void checkBluetoothPermissions() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) {
+
+            ActivityCompat.requestPermissions(this,
+                    new String[]{
+                            Manifest.permission.BLUETOOTH,
+                            Manifest.permission.BLUETOOTH_ADMIN
+                    }, REQUEST_BT_PERMISSIONS);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQUEST_BT_PERMISSIONS) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Permission Bluetooth accordée", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Permission Bluetooth refusée. L'application ne peut pas fonctionner.", Toast.LENGTH_LONG).show();
+                finish();
+            }
+        }
     }
 
     private class ServerThread extends Thread {
@@ -98,11 +125,15 @@ public class MainActivity extends AppCompatActivity {
 
         public ServerThread() {
             BluetoothServerSocket tmp = null;
-            try {
-                tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord("MyServer", MY_UUID);
-                Log.d("Bluetooth", "Socket serveur prêt.");
-            } catch (IOException e) {
-                Log.e("Bluetooth", "Erreur lors de la création du socket serveur.", e);
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
+                try {
+                    tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord("MyServer", MY_UUID);
+                    Log.d("Bluetooth", "Socket serveur prêt.");
+                } catch (IOException e) {
+                    Log.e("Bluetooth", "Erreur lors de la création du socket serveur.", e);
+                }
+            } else {
+                Log.e("Bluetooth", "Permission refusée pour créer le socket serveur");
             }
             mmServerSocket = tmp;
         }
@@ -120,8 +151,12 @@ public class MainActivity extends AppCompatActivity {
 
                 if (socket != null) {
                     transferData = new TransferData(socket);
-                    Intent intent = new Intent(MainActivity.this, ServeurActivity.class);
-                    startActivity(intent);
+                    transferData.start(); // Important : démarre le thread
+                    runOnUiThread(() -> {
+                        Intent intent = new Intent(MainActivity.this, MessageActivity.class);
+                        startActivity(intent);
+                    });
+
                     break;
                 }
             }
@@ -135,23 +170,43 @@ public class MainActivity extends AppCompatActivity {
         public ClientThread(BluetoothDevice device) {
             BluetoothSocket tmp = null;
             mmDevice = device;
-            try {
-                tmp = device.createRfcommSocketToServiceRecord(MY_UUID);
-                Log.d("Bluetooth", "Socket client créé.");
-            } catch (IOException e) {
-                Log.e("Bluetooth", "Erreur lors de la création du socket client.", e);
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
+                try {
+                    tmp = device.createRfcommSocketToServiceRecord(MY_UUID);
+                    Log.d("Bluetooth", "Socket client créé.");
+                } catch (IOException e) {
+                    Log.e("Bluetooth", "Erreur lors de la création du socket client.", e);
+                }
+            } else {
+                Log.e("Bluetooth", "Permission refusée pour créer le socket client");
             }
             mmSocket = tmp;
         }
 
+        @Override
         public void run() {
-            bluetoothAdapter.cancelDiscovery();
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                // Optionnel : demande dynamique pour API 31+
+                return;
+            }
+
+            bluetoothAdapter.cancelDiscovery(); // Toujours annuler la découverte avant une connexion
+
             try {
                 mmSocket.connect();
                 Log.d("Bluetooth", "Connexion réussie avec le serveur.");
+
+                // Création du thread de transfert
                 transferData = new TransferData(mmSocket);
-                Intent intent = new Intent(MainActivity.this, ClientActivity.class);
-                startActivity(intent);
+                transferData.start(); // Démarre le thread (lecture des messages)
+
+                // Lancer l'activité de messagerie
+                runOnUiThread(() -> {
+                    Intent intent = new Intent(MainActivity.this, MessageActivity.class);
+                    startActivity(intent);
+                });
+
+
             } catch (IOException connectException) {
                 Log.e("Bluetooth", "Échec de la connexion.", connectException);
                 try {
@@ -161,8 +216,10 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
-    }
 
+    }
+    /*
+    // Ancienne version interne de TransferData (à ne plus utiliser)
     public class TransferData extends Thread {
         private final BluetoothSocket socket;
         private final InputStream inputStream;
@@ -210,4 +267,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+    */
+
 }
